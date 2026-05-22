@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Bon d’achat — 10 Secondes</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#080810;--surf:#111122;--gold:#ffd700;--green:#00ff88;--red:#ff3b3b;--muted:#7777aa;--text:#fff}
+*{box-sizing:border-box;margin:0;padding:0}body{min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% 20%,rgba(255,215,0,.18),transparent 30%),linear-gradient(135deg,#080810,#111133);color:#fff;font-family:'Space Mono',monospace;padding:18px}
+.card{width:min(620px,100%);background:rgba(17,17,34,.92);border:1px solid rgba(255,255,255,.12);border-radius:28px;padding:30px;text-align:center;box-shadow:0 30px 90px rgba(0,0,0,.45)}
+h1{font-family:'Bebas Neue',cursive;font-size:clamp(42px,10vw,86px);letter-spacing:4px;color:var(--gold);line-height:.9}
+.value{font-family:'Bebas Neue',cursive;font-size:clamp(76px,18vw,140px);letter-spacing:-4px;line-height:.8;margin:22px 0;color:#fff;text-shadow:0 0 34px rgba(255,215,0,.42)}
+p{color:var(--muted);line-height:1.7;margin:8px 0}
+.status{display:inline-flex;padding:9px 16px;border-radius:999px;font-weight:700;margin:14px 0;background:rgba(255,255,255,.08)}
+.valid{color:var(--green)}.bad{color:var(--red)}.token{font-size:11px;word-break:break-all;color:rgba(255,255,255,.45);margin-top:18px}
+</style></head>
+<body>
+<div class="card" id="app">Chargement...</div>
+<script>
+const FB_URL='https://defis-10-secondes-default-rtdb.europe-west1.firebasedatabase.app'; const $=id=>document.getElementById(id);
+async function fbGet(path){const r=await fetch(FB_URL+path+'.json'); if(!r.ok) throw new Error('HTTP '+r.status); return r.json();}
+function qs(n){return new URLSearchParams(location.search).get(n)||''} function dateStr(ts){return ts?new Date(ts).toLocaleDateString('fr-FR'):''} function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function init(){
+ const t=qs('t'); if(!t){app.innerHTML='<h1>Bon introuvable</h1><p>Aucun token fourni.</p>';return;}
+ try{
+   const v=await fbGet('/vouchers/'+t);
+   if(!v){app.innerHTML='<h1>Bon introuvable</h1><p>Ce bon n’existe pas.</p>';return;}
+   const expired=v.expiresAt && v.expiresAt<Date.now();
+   const ok=!v.used && !expired;
+   app.innerHTML=`<h1>${esc(v.label||'Bon d’achat')}</h1><div class="value">${esc(v.value||'')}</div><p>Attribué à : <b>${esc(v.firstName)} ${esc(v.lastName)}</b></p><p>Valable jusqu’au : ${dateStr(v.expiresAt)}</p><div class="status ${ok?'valid':'bad'}">${ok?'VALIDE — À PRÉSENTER EN CAISSE':v.used?'DÉJÀ UTILISÉ':'EXPIRÉ'}</div><p>Le personnel doit vérifier ce bon dans l’admin loterie avant déduction.</p><div class="token">Token : ${esc(t)}</div>`;
+ }catch(e){app.innerHTML='<h1>Erreur</h1><p>Impossible de vérifier le bon.</p>';}
+}
+init();
+</script>
+</body></html>

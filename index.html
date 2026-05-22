@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Loterie — 10 Secondes</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#080810;--surf:#111122;--blue:#3d9bff;--cyan:#00e5ff;--gold:#ffd700;--green:#00ff88;--red:#ff3b3b;--purple:#a855f7;--muted:#7777aa;--text:#fff;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%;background:radial-gradient(circle at 20% 10%,rgba(255,215,0,.16),transparent 26%),radial-gradient(circle at 85% 20%,rgba(0,229,255,.16),transparent 28%),linear-gradient(135deg,#080810,#111133 52%,#20051d);color:var(--text);font-family:'Space Mono',monospace;}
+body{display:flex;align-items:center;justify-content:center;padding:18px;}
+.card{width:min(760px,100%);background:rgba(17,17,34,.88);border:1px solid rgba(255,255,255,.12);border-radius:28px;padding:clamp(20px,4vw,34px);box-shadow:0 30px 90px rgba(0,0,0,.45);backdrop-filter:blur(16px);}
+.logo{font-family:'Bebas Neue',cursive;font-size:clamp(46px,9vw,88px);letter-spacing:5px;line-height:.82;color:var(--blue);text-shadow:0 0 42px rgba(61,155,255,.45);text-align:center}
+.sub{text-align:center;color:var(--muted);letter-spacing:2px;font-size:13px;margin:12px auto 24px;line-height:1.55;max-width:620px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field.full{grid-column:1/-1}
+label{font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;font-weight:700}
+input,select,textarea{width:100%;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;padding:14px 15px;font-family:'Space Mono',monospace;outline:none;font-size:15px}
+textarea{min-height:110px;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(61,155,255,.12)}
+.rating{display:grid;grid-template-columns:repeat(11,1fr);gap:7px;margin-top:2px}
+.rate{height:46px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;font-family:'Bebas Neue',cursive;font-size:24px;cursor:pointer}
+.rate.on{background:linear-gradient(180deg,#fff3a2,var(--gold),#ff8c00);color:#111;border-color:var(--gold);box-shadow:0 0 22px rgba(255,215,0,.28)}
+.check{display:flex;gap:10px;align-items:flex-start;color:rgba(255,255,255,.82);font-size:13px;line-height:1.45;margin:8px 0}
+.check input{width:20px;height:20px;flex:0 0 auto;margin-top:1px}
+.btn{width:100%;border:none;border-radius:999px;height:60px;font-family:'Bebas Neue',cursive;font-size:25px;letter-spacing:3px;cursor:pointer;background:linear-gradient(180deg,#fff3a2,var(--gold),#ff8c00);color:#111;box-shadow:0 12px 34px rgba(255,140,0,.28)}
+.btn:active{transform:scale(.98)}
+.btn.secondary{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.13);box-shadow:none}
+.btn.google{background:#fff;color:#111;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn.mail{background:linear-gradient(180deg,#e9f7ff,#3d9bff);color:#05111d}
+.btn.magic{background:linear-gradient(180deg,#eafff4,#00ff88);color:#04140b}
+.err{min-height:20px;color:var(--red);font-size:13px;text-align:center;margin:8px 0}
+.hidden{display:none!important}
+.result{text-align:center;display:flex;flex-direction:column;gap:16px;align-items:center}
+.result .emoji{font-size:74px}
+.result h1{font-family:'Bebas Neue',cursive;font-size:clamp(42px,8vw,78px);letter-spacing:4px;line-height:.9}
+.result p{color:var(--muted);line-height:1.65;max-width:620px}
+.actions{display:grid;gap:12px;width:100%;max-width:520px;margin-top:6px}
+.badge{display:inline-flex;padding:8px 14px;border-radius:999px;background:rgba(255,215,0,.10);border:1px solid rgba(255,215,0,.25);color:var(--gold);font-weight:700;font-size:13px}
+.note{font-size:11px;color:rgba(255,255,255,.48);line-height:1.5;margin-top:10px;text-align:center}
+@media(max-width:620px){.grid{grid-template-columns:1fr}.rating{grid-template-columns:repeat(6,1fr)}.rate{height:42px}}
+</style>
+</head>
+<body>
+<main class="card">
+  <section id="formView">
+    <div class="logo">TIRAGE AU SORT</div>
+    <div class="sub" id="introText">Ton inscription est presque validée. Remplis ce formulaire pour participer au tirage hebdomadaire.</div>
+
+    <div class="grid">
+      <div class="field"><label>Prénom</label><input id="firstName" autocomplete="given-name"></div>
+      <div class="field"><label>Nom</label><input id="lastName" autocomplete="family-name"></div>
+      <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email" placeholder="exemple@mail.fr"></div>
+      <div class="field"><label>Confirmer email</label><input id="email2" type="email" autocomplete="email" placeholder="retape ton email"></div>
+      <div class="field"><label>Téléphone</label><input id="phone" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78"></div>
+      <div class="field full">
+        <label>Es-tu porteur de la Carte Magique ?</label>
+        <select id="hasMagicCard">
+          <option value="">Choisir</option>
+          <option value="oui">Oui</option>
+          <option value="non">Non</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label>Note globale du magasin sur 10</label>
+        <div class="rating" id="ratingBox"></div>
+      </div>
+      <div class="field full hidden" id="commentWrap">
+        <label>Que pouvons-nous améliorer ?</label>
+        <textarea id="comment" placeholder="Ton retour nous aide à progresser..."></textarea>
+      </div>
+    </div>
+
+    <label class="check"><input id="acceptRules" type="checkbox"> J’accepte que mes informations soient utilisées pour gérer ma participation au tirage au sort.</label>
+    <label class="check"><input id="acceptMarketing" type="checkbox"> J’accepte de recevoir des informations du magasin, offres et informations Carte Magique.</label>
+
+    <div class="err" id="err"></div>
+    <button class="btn" id="submitBtn">VALIDER MA PARTICIPATION</button>
+    <div class="note">Les données sont enregistrées uniquement pour la gestion du jeu, du tirage et du suivi demandé. Les communications commerciales restent facultatives.</div>
+  </section>
+
+  <section id="thanks10" class="result hidden">
+    <div class="emoji">🎉</div>
+    <span class="badge">Participation validée</span>
+    <h1>Merci beaucoup !</h1>
+    <p id="thanks10Text">Ton inscription au tirage est validée. Si tu as adoré ton passage en magasin, tu peux nous aider avec un avis Google.</p>
+    <div class="actions">
+      <button class="btn google" id="googleBtn">⭐ LAISSER UN AVIS GOOGLE</button>
+      <button class="btn magic hidden" id="magicBtn10">Créer ma Carte Magique</button>
+      <button class="btn secondary" onclick="finish()">Terminer</button>
+    </div>
+  </section>
+
+  <section id="thanksLow" class="result hidden">
+    <div class="emoji">🙏</div>
+    <span class="badge">Participation validée</span>
+    <h1>Merci pour ton retour</h1>
+    <p id="thanksLowText">Ton inscription au tirage est validée. Ton retour est transmis au magasin afin que nous puissions nous améliorer.</p>
+    <div class="actions">
+      <button class="btn mail" id="mailBtn">Envoyer mon retour au magasin</button>
+      <button class="btn magic hidden" id="magicBtnLow">Créer ma Carte Magique</button>
+      <button class="btn secondary" onclick="finish()">Terminer</button>
+    </div>
+  </section>
+
+  <section id="finalEnd" class="result hidden">
+    <div class="emoji">✅</div>
+    <span class="badge">C’est terminé</span>
+    <h1>Merci !</h1>
+    <p>Ta participation est bien enregistrée. Tu peux fermer cette page.</p>
+  </section>
+</main>
+
+<script>
+'use strict';
+const FB_URL = 'https://defis-10-secondes-default-rtdb.europe-west1.firebasedatabase.app';
+const DEFAULT_CFG = {
+  googleReviewUrl: 'https://g.page/r/COLLER_ICI_LIEN_GOOGLE/review',
+  feedbackEmail: 'jcclient@gmail.com',
+  magicCardUrl: 'https://www.joueclub.fr/club-carte-magique.html',
+  lotteryIntroText: 'Ton inscription est presque validée. Remplis ce formulaire pour participer au tirage hebdomadaire.',
+  thanks10Text: 'Ton inscription au tirage est validée. Si tu as adoré ton passage en magasin, tu peux nous aider avec un avis Google.',
+  thanksLowText: 'Ton inscription au tirage est validée. Ton retour est transmis au magasin afin que nous puissions nous améliorer.',
+  giftLabel: 'Bon d’achat hebdomadaire',
+  giftValue: '20€',
+  googleThreshold: 10
+};
+let cfg = {...DEFAULT_CFG};
+let selectedRating = null;
+let currentEntryId = null;
+let currentEntry = null;
+
+const $ = id => document.getElementById(id);
+
+async function fbGet(path){ const r=await fetch(FB_URL+path+'.json'); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }
+async function fbSet(path,data){ const r=await fetch(FB_URL+path+'.json',{method:'PUT',body:JSON.stringify(data)}); return r.json(); }
+async function fbPush(path,data){ const r=await fetch(FB_URL+path+'.json',{method:'POST',body:JSON.stringify(data)}); return r.json(); }
+async function fbPatch(path,data){ const r=await fetch(FB_URL+path+'.json',{method:'PATCH',body:JSON.stringify(data)}); return r.json(); }
+
+function qs(name){ return new URLSearchParams(location.search).get(name)||''; }
+function now(){ return Date.now(); }
+function todayKey(){ const d=new Date(); return d.toISOString().slice(0,10); }
+
+async function init(){
+  renderRating();
+  try {
+    const remote = await fbGet('/loterieConfig');
+    cfg = {...DEFAULT_CFG, ...(remote||{})};
+  } catch(e){ console.warn(e); }
+  $('introText').textContent = cfg.lotteryIntroText;
+  $('thanks10Text').textContent = cfg.thanks10Text;
+  $('thanksLowText').textContent = cfg.thanksLowText;
+  $('phone').addEventListener('input', formatPhoneField);
+  $('email').addEventListener('blur', () => $('email').value = normalizeEmail($('email').value));
+  $('email2').addEventListener('blur', () => $('email2').value = normalizeEmail($('email2').value));
+  $('submitBtn').addEventListener('click', submit);
+  $('googleBtn').addEventListener('click', googleClick);
+  $('mailBtn').addEventListener('click', mailClick);
+  $('magicBtn10').addEventListener('click', magicClick);
+  $('magicBtnLow').addEventListener('click', magicClick);
+}
+
+function renderRating(){
+  const box=$('ratingBox');
+  for(let i=0;i<=10;i++){
+    const b=document.createElement('button');
+    b.type='button'; b.className='rate'; b.textContent=i;
+    b.addEventListener('click',()=>{
+      selectedRating=i;
+      document.querySelectorAll('.rate').forEach(x=>x.classList.toggle('on', Number(x.textContent)===i));
+      $('commentWrap').classList.toggle('hidden', i===10);
+      if(i<10) setTimeout(()=>$('comment').focus(), 80);
+    });
+    box.appendChild(b);
+  }
+}
+
+function val(id){ return ($(id)?.value || '').trim(); }
+function showErr(msg){ $('err').textContent=msg; }
+
+function normalizeEmail(email){
+  return String(email || '').trim().toLowerCase();
+}
+
+function isValidEmail(email){
+  return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(email);
+}
+
+function normalizePhone(phone){
+  return String(phone || '').replace(/[^\d+]/g, '');
+}
+
+function isValidFrenchPhone(phone){
+  const p = normalizePhone(phone);
+  return /^(0[1-9]\d{8}|\+33[1-9]\d{8})$/.test(p);
+}
+
+function formatPhoneField(){
+  let p = $('phone').value.replace(/[^\d+]/g, '');
+  if(p.startsWith('+33')){
+    $('phone').value = p;
+    return;
+  }
+  if(p.length > 10) p = p.slice(0, 10);
+  if(/^0\d{1,9}$/.test(p)){
+    $('phone').value = p.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+  }
+}
+
+function validate(){
+  const firstName = val('firstName');
+  const lastName = val('lastName');
+  const email = normalizeEmail(val('email'));
+  const email2 = normalizeEmail(val('email2'));
+  const phone = normalizePhone(val('phone'));
+
+  if(firstName.length < 2) return 'Prénom obligatoire, 2 caractères minimum.';
+  if(lastName.length < 2) return 'Nom obligatoire, 2 caractères minimum.';
+  if(!isValidEmail(email)) return 'Email invalide. Exemple attendu : nom@mail.fr';
+  if(email !== email2) return 'Les deux adresses email ne correspondent pas.';
+  if(!isValidFrenchPhone(phone)) return 'Téléphone invalide. Exemple : 06 12 34 56 78.';
+  if(!val('hasMagicCard')) return 'Indique si tu as la Carte Magique.';
+  if(selectedRating===null) return 'Indique une note sur 10.';
+  if(selectedRating<10 && val('comment').length < 5) return 'Merci d’indiquer ce que nous pouvons améliorer.';
+  if(!$('acceptRules').checked) return 'Tu dois accepter l’utilisation de tes données pour participer.';
+  return '';
+}
+
+async function submit(){
+  const error = validate();
+  if(error) { showErr(error); return; }
+  showErr('');
+  $('submitBtn').disabled=true;
+  $('submitBtn').textContent='ENREGISTREMENT...';
+
+  const entry = {
+    firstName: val('firstName'),
+    lastName: val('lastName'),
+    email: normalizeEmail(val('email')),
+    phone: normalizePhone(val('phone')),
+    emailValidated: true,
+    phoneValidated: true,
+    hasMagicCard: val('hasMagicCard'),
+    rating: selectedRating,
+    comment: val('comment'),
+    acceptRules: $('acceptRules').checked,
+    acceptMarketing: $('acceptMarketing').checked,
+    source: qs('src') || 'jeu_10_secondes',
+    session: qs('session') || '',
+    code: qs('code') || '',
+    createdAt: now(),
+    day: todayKey(),
+    googleEligible: selectedRating >= Number(cfg.googleThreshold||10),
+    googleShown: selectedRating >= Number(cfg.googleThreshold||10),
+    googleClicked: false,
+    internalFeedbackShown: selectedRating < Number(cfg.googleThreshold||10),
+    internalFeedbackClicked: false,
+    magicCardShown: val('hasMagicCard') === 'non',
+    magicCardClicked: false,
+    drawEligible: true,
+    winner: false,
+    voucherToken: null
+  };
+
+  try {
+    const res = await fbPush('/loterieEntries', entry);
+    currentEntryId = res.name;
+    currentEntry = entry;
+    await fbPush('/loterieEvents', {entryId:currentEntryId,type:'form_submitted',rating:selectedRating,createdAt:now()});
+    showThanks(entry);
+  } catch(e) {
+    console.error(e);
+    showErr('Erreur d’enregistrement. Réessaie dans quelques instants.');
+    $('submitBtn').disabled=false;
+    $('submitBtn').textContent='VALIDER MA PARTICIPATION';
+  }
+}
+
+function showThanks(entry){
+  $('formView').classList.add('hidden');
+  if(entry.hasMagicCard === 'non'){
+    $('magicBtn10').classList.remove('hidden');
+    $('magicBtnLow').classList.remove('hidden');
+  }
+  if(entry.rating >= Number(cfg.googleThreshold||10)){
+    $('thanks10').classList.remove('hidden');
+  } else {
+    $('thanksLow').classList.remove('hidden');
+  }
+}
+
+async function track(type, extra={}){
+  if(!currentEntryId) return;
+  try { await fbPush('/loterieEvents', {entryId:currentEntryId,type,createdAt:now(),...extra}); } catch(e){}
+}
+
+async function googleClick(){
+  await track('google_review_click');
+  await fbPatch('/loterieEntries/'+currentEntryId, {googleClicked:true,googleClickedAt:now()});
+  location.href = cfg.googleReviewUrl;
+}
+
+async function mailClick(){
+  await track('internal_feedback_click');
+  await fbPatch('/loterieEntries/'+currentEntryId, {internalFeedbackClicked:true,internalFeedbackClickedAt:now()});
+  const subject = encodeURIComponent('Retour client Jeu 10 Secondes — note '+currentEntry.rating+'/10');
+  const body = encodeURIComponent(
+    'Nom : '+currentEntry.firstName+' '+currentEntry.lastName+'\n' +
+    'Email : '+currentEntry.email+'\n' +
+    'Téléphone : '+currentEntry.phone+'\n' +
+    'Carte Magique : '+currentEntry.hasMagicCard+'\n' +
+    'Note : '+currentEntry.rating+'/10\n\n' +
+    'Commentaire :\n'+currentEntry.comment
+  );
+  location.href = 'mailto:'+encodeURIComponent(cfg.feedbackEmail)+'?subject='+subject+'&body='+body;
+}
+
+async function magicClick(){
+  await track('magic_card_click');
+  if(currentEntryId) await fbPatch('/loterieEntries/'+currentEntryId, {magicCardClicked:true,magicCardClickedAt:now()});
+  location.href = cfg.magicCardUrl;
+}
+
+function finish(){
+  $('thanks10').classList.add('hidden');
+  $('thanksLow').classList.add('hidden');
+  $('formView').classList.add('hidden');
+  $('finalEnd').classList.remove('hidden');
+}
+
+init();
+</script>
+</body>
+</html>
