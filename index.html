@@ -89,7 +89,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     <div class="actions">
       <button class="btn google" id="googleBtn">⭐ LAISSER UN AVIS GOOGLE</button>
       <button class="btn magic hidden" id="magicBtn10">Créer ma Carte Magique</button>
-      <button class="btn secondary" onclick="finish()">Terminer</button>
+      <button class="btn secondary" onclick="finish(); return false;">Terminer</button>
     </div>
   </section>
 
@@ -101,7 +101,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     <div class="actions">
       <button class="btn mail" id="mailBtn">Envoyer mon retour au magasin</button>
       <button class="btn magic hidden" id="magicBtnLow">Créer ma Carte Magique</button>
-      <button class="btn secondary" onclick="finish()">Terminer</button>
+      <button class="btn secondary" onclick="finish(); return false;">Terminer</button>
     </div>
   </section>
 
@@ -110,6 +110,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     <span class="badge">C’est terminé</span>
     <h1>Merci !</h1>
     <p>Ta participation est bien enregistrée. Tu peux fermer cette page.</p>
+  </section>
+  <section id="alreadyDone" class="result hidden">
+    <div class="emoji">✅</div>
+    <span class="badge">Participation déjà enregistrée</span>
+    <h1>C’est déjà bon !</h1>
+    <p>Ta participation est déjà enregistrée. Une seule participation est acceptée par email ou téléphone. Ce navigateur est maintenant bloqué pour éviter les participations multiples.</p>
   </section>
 </main>
 
@@ -125,9 +131,11 @@ const DEFAULT_CFG = {
   thanksLowText: 'Ton inscription au tirage est validée. Ton retour est transmis au magasin afin que nous puissions nous améliorer.',
   giftLabel: 'Bon d’achat hebdomadaire',
   giftValue: '20€',
-  googleThreshold: 10
+  googleThreshold: 10,
+  duplicatePeriodMode: 'permanent'
 };
 let cfg = {...DEFAULT_CFG};
+const LOCAL_SUBMIT_KEY = 'jca_loterie_participation_done_v1';
 let selectedRating = null;
 let currentEntryId = null;
 let currentEntry = null;
@@ -143,8 +151,39 @@ function qs(name){ return new URLSearchParams(location.search).get(name)||''; }
 function now(){ return Date.now(); }
 function todayKey(){ const d=new Date(); return d.toISOString().slice(0,10); }
 
+
+function hasLocalParticipation(){
+  try {
+    return localStorage.getItem(LOCAL_SUBMIT_KEY) === 'yes';
+  } catch(e) {
+    return false;
+  }
+}
+
+function markLocalParticipation(){
+  try {
+    localStorage.setItem(LOCAL_SUBMIT_KEY, 'yes');
+    localStorage.setItem(LOCAL_SUBMIT_KEY + '_date', String(Date.now()));
+  } catch(e) {}
+}
+
+function showBlockedLocal(){
+  if(typeof showAlreadyDone === 'function'){
+    showAlreadyDone();
+    return;
+  }
+  const form = document.getElementById('formView');
+  if(form) form.classList.add('hidden');
+  const already = document.getElementById('alreadyDone');
+  if(already) already.classList.remove('hidden');
+}
+
 async function init(){
   renderRating();
+  if(hasLocalParticipation()){
+    showBlockedLocal();
+    return;
+  }
   try {
     const remote = await fbGet('/loterieConfig');
     cfg = {...DEFAULT_CFG, ...(remote||{})};
@@ -228,6 +267,54 @@ function validate(){
   return '';
 }
 
+
+function duplicatePeriodKey(){
+  // Blocage définitif : une seule participation par email ou téléphone.
+  // Pour repartir à zéro plus tard, changer cette valeur, ex : 'campagne-noel-2026'.
+  return 'permanent';
+}
+
+function safeKey(value){
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+// Les verrous sont stockés dans /loterieLocks/permanent/email et /loterieLocks/permanent/phone.
+async function checkDuplicate(email, phone){
+  const period = duplicatePeriodKey();
+  const emailKey = safeKey(email);
+  const phoneKey = safeKey(phone);
+
+  const emailLock = await fbGet('/loterieLocks/' + period + '/email/' + emailKey).catch(() => null);
+  const phoneLock = await fbGet('/loterieLocks/' + period + '/phone/' + phoneKey).catch(() => null);
+
+  if(emailLock || phoneLock){
+    return { duplicate: true, period, reason: emailLock ? 'email' : 'phone' };
+  }
+  return { duplicate: false, period, emailKey, phoneKey };
+}
+
+async function createDuplicateLocks(lockInfo, entryId, entry){
+  const lockData = {
+    entryId,
+    createdAt: now(),
+    email: entry.email,
+    phone: entry.phone
+  };
+  await fbSet('/loterieLocks/' + lockInfo.period + '/email/' + lockInfo.emailKey, lockData);
+  await fbSet('/loterieLocks/' + lockInfo.period + '/phone/' + lockInfo.phoneKey, lockData);
+}
+
+function showAlreadyDone(){
+  $('formView').classList.add('hidden');
+  $('thanks10').classList.add('hidden');
+  $('thanksLow').classList.add('hidden');
+  if($('finalEnd')) $('finalEnd').classList.add('hidden');
+  $('alreadyDone').classList.remove('hidden');
+}
+
 async function submit(){
   const error = validate();
   if(error) { showErr(error); return; }
@@ -235,13 +322,41 @@ async function submit(){
   $('submitBtn').disabled=true;
   $('submitBtn').textContent='ENREGISTREMENT...';
 
+  const normalizedEmail = normalizeEmail(val('email'));
+  const normalizedPhone = normalizePhone(val('phone'));
+
+  let lockInfo;
+  try {
+    lockInfo = await checkDuplicate(normalizedEmail, normalizedPhone);
+    if(lockInfo.duplicate){
+      await fbPush('/loterieEvents', {
+        type: 'duplicate_blocked',
+        email: normalizedEmail,
+        phone: normalizedPhone,
+        reason: lockInfo.reason,
+        period: lockInfo.period,
+        createdAt: now()
+      }).catch(() => {});
+      markLocalParticipation();
+      showAlreadyDone();
+      return;
+    }
+  } catch(e) {
+    console.error(e);
+    showErr('Erreur de vérification. Réessaie dans quelques instants.');
+    $('submitBtn').disabled=false;
+    $('submitBtn').textContent='VALIDER MA PARTICIPATION';
+    return;
+  }
+
   const entry = {
     firstName: val('firstName'),
     lastName: val('lastName'),
-    email: normalizeEmail(val('email')),
-    phone: normalizePhone(val('phone')),
+    email: normalizedEmail,
+    phone: normalizedPhone,
     emailValidated: true,
     phoneValidated: true,
+    duplicatePeriod: lockInfo.period,
     hasMagicCard: val('hasMagicCard'),
     rating: selectedRating,
     comment: val('comment'),
@@ -268,7 +383,9 @@ async function submit(){
     const res = await fbPush('/loterieEntries', entry);
     currentEntryId = res.name;
     currentEntry = entry;
-    await fbPush('/loterieEvents', {entryId:currentEntryId,type:'form_submitted',rating:selectedRating,createdAt:now()});
+    await createDuplicateLocks(lockInfo, currentEntryId, entry);
+    markLocalParticipation();
+    await fbPush('/loterieEvents', {entryId:currentEntryId,type:'form_submitted',rating:selectedRating,createdAt:now(), period: lockInfo.period});
     showThanks(entry);
   } catch(e) {
     console.error(e);
@@ -323,14 +440,36 @@ async function magicClick(){
   location.href = cfg.magicCardUrl;
 }
 
+
+
+
+function showFinalEnd(){
+  ['formView','thanks10','thanksLow','alreadyDone'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.classList.add('hidden');
+  });
+  const final = document.getElementById('finalEnd');
+  if(final) final.classList.remove('hidden');
+}
+
 function finish(){
-  $('thanks10').classList.add('hidden');
-  $('thanksLow').classList.add('hidden');
-  $('formView').classList.add('hidden');
-  $('finalEnd').classList.remove('hidden');
+  showFinalEnd();
 }
 
 init();
 </script>
+
+<script>
+document.addEventListener('click', function(e){
+  const a = e.target.closest && e.target.closest('a[href]');
+  if(!a) return;
+  const href = a.getAttribute('href') || '';
+  if(href.includes('10secondes') || href.includes('jca-borne-magasin')){
+    e.preventDefault();
+    if(typeof showFinalEnd === 'function') showFinalEnd();
+  }
+});
+</script>
+
 </body>
 </html>
